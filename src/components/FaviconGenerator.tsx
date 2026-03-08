@@ -1,10 +1,12 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import FaviconCanvas from "@/components/FaviconCanvas";
 import IconPicker from "@/components/IconPicker";
 import ColorPicker from "@/components/ColorPicker";
 import ShapePicker from "@/components/ShapePicker";
-import { Download, RotateCcw, Sparkles } from "lucide-react";
+import ImageUpload from "@/components/ImageUpload";
+import { Download, RotateCcw, Sparkles, FileImage } from "lucide-react";
+import { generateICO, renderFaviconToImageData } from "@/lib/ico-generator";
 
 const BG_PRESETS = [
   "#1a1a2e", "#16213e", "#0f3460", "#e94560",
@@ -27,7 +29,7 @@ const FaviconGenerator: React.FC = () => {
   const [shape, setShape] = useState<"square" | "rounded" | "circle">("rounded");
   const [category, setCategory] = useState("tech");
   const [fontSize, setFontSize] = useState(38);
-  const downloadCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [customImage, setCustomImage] = useState<string | null>(null);
 
   const resetAll = () => {
     setIcon("⚡");
@@ -36,12 +38,22 @@ const FaviconGenerator: React.FC = () => {
     setShape("rounded");
     setCategory("tech");
     setFontSize(38);
+    setCustomImage(null);
   };
 
   const randomize = () => {
-    const allIcons = Object.values(
-      { tech: ["⚡","💻","🖥️","📱","⌨️","🖱️","💾","📡","🔌","🛰️","🤖","🧠","⚙️","🔧","🔗","📊"], nature: ["🌿","🌸","🍀","🌊","🔥","❄️","🌙","☀️","⭐","🌈","🍃","🌲","🏔️","🌻","🦋","🐝"], objects: ["📦","🎯","🏷️","📌","✏️","🎨","🔮","💎","🏆","🎪","🎲","🧩","🔑","🛡️","⚓","🧭"], symbols: ["◆","●","▲","■","◇","○","△","□","★","♦","♠","♣","♥","✦","✧","⬡"], letters: ["A","B","C","D","E","F","G","H","K","L","M","N","P","R","S","X"], food: ["☕","🍕","🍔","🌮","🍜","🍣","🧁","🍩","🍷","🥐","🍎","🥑","🍋","🫐","🧀","🍪"] }
-    ).flat();
+    setCustomImage(null);
+    const categories = ["tech", "business", "creative", "nature", "food", "travel", "gaming", "animals", "symbols", "letters", "health", "education"];
+    const allIcons = [
+      "⚡","💻","🖥️","📱","🤖","🧠","⚙️","🔧","🌐","💡","📈","📉",
+      "💼","📋","🏢","💰","💳","🤝","🏦","📧","✅","📅","🔔","📣",
+      "🎨","✏️","🖌️","📸","🎬","🎵","🎶","🎹","🎸","📷","🖼️","✨",
+      "🌿","🌸","🍀","🌊","🔥","❄️","🌙","☀️","⭐","🌈","🌲","🦋",
+      "☕","🍕","🍔","🧁","🍩","🍷","🍎","🥑","🍋","🍪","🍰","🥤",
+      "✈️","🚀","🚗","🏠","🏰","🗺️","🧭","🌍","🗼","🏖️","🎒","⛰️",
+      "🎮","🕹️","👾","🎲","🏆","🥇","⚽","🎾","🎯","🏹","🛹","🏋️",
+      "🐱","🐶","🦊","🐻","🐼","🦁","🦄","🐸","🐙","🦈","🦅","🐬",
+    ];
     setIcon(allIcons[Math.floor(Math.random() * allIcons.length)]);
     setBgColor(BG_PRESETS[Math.floor(Math.random() * BG_PRESETS.length)]);
     setIconColor(ICON_PRESETS[Math.floor(Math.random() * ICON_PRESETS.length)]);
@@ -58,40 +70,79 @@ const FaviconGenerator: React.FC = () => {
 
     const scaledFontSize = (fontSize / 64) * exportSize;
 
-    ctx.fillStyle = bgColor;
-    const r = shape === "circle" ? exportSize / 2 : shape === "rounded" ? exportSize * 0.2 : 0;
+    const drawBg = () => {
+      ctx.fillStyle = bgColor;
+      const r = shape === "circle" ? exportSize / 2 : shape === "rounded" ? exportSize * 0.2 : 0;
+      if (shape === "circle") {
+        ctx.beginPath();
+        ctx.arc(exportSize / 2, exportSize / 2, exportSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (shape === "rounded") {
+        ctx.beginPath();
+        ctx.moveTo(r, 0);
+        ctx.lineTo(exportSize - r, 0);
+        ctx.quadraticCurveTo(exportSize, 0, exportSize, r);
+        ctx.lineTo(exportSize, exportSize - r);
+        ctx.quadraticCurveTo(exportSize, exportSize, exportSize - r, exportSize);
+        ctx.lineTo(r, exportSize);
+        ctx.quadraticCurveTo(0, exportSize, 0, exportSize - r);
+        ctx.lineTo(0, r);
+        ctx.quadraticCurveTo(0, 0, r, 0);
+        ctx.fill();
+      } else {
+        ctx.fillRect(0, 0, exportSize, exportSize);
+      }
+    };
 
-    if (shape === "circle") {
-      ctx.beginPath();
-      ctx.arc(exportSize / 2, exportSize / 2, exportSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (shape === "rounded") {
-      ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.lineTo(exportSize - r, 0);
-      ctx.quadraticCurveTo(exportSize, 0, exportSize, r);
-      ctx.lineTo(exportSize, exportSize - r);
-      ctx.quadraticCurveTo(exportSize, exportSize, exportSize - r, exportSize);
-      ctx.lineTo(r, exportSize);
-      ctx.quadraticCurveTo(0, exportSize, 0, exportSize - r);
-      ctx.lineTo(0, r);
-      ctx.quadraticCurveTo(0, 0, r, 0);
-      ctx.fill();
+    drawBg();
+
+    if (customImage) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const padding = exportSize * 0.15;
+        const imgRatio = img.width / img.height;
+        let sx = 0, sy = 0, sw = img.width, sh = img.height;
+        if (imgRatio > 1) { sx = (img.width - img.height) / 2; sw = img.height; }
+        else { sy = (img.height - img.width) / 2; sh = img.width; }
+        ctx.drawImage(img, sx, sy, sw, sh, padding, padding, exportSize - padding * 2, exportSize - padding * 2);
+        const link = document.createElement("a");
+        link.download = `favicon-${exportSize}x${exportSize}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      };
+      img.src = customImage;
     } else {
-      ctx.fillRect(0, 0, exportSize, exportSize);
+      ctx.fillStyle = iconColor;
+      ctx.font = `${scaledFontSize}px serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(icon, exportSize / 2, exportSize / 2 + 2);
+
+      const link = document.createElement("a");
+      link.download = `favicon-${exportSize}x${exportSize}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
     }
+  }, [icon, bgColor, iconColor, shape, fontSize, customImage]);
 
-    ctx.fillStyle = iconColor;
-    ctx.font = `${scaledFontSize}px serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(icon, exportSize / 2, exportSize / 2 + 2);
+  const downloadICO = useCallback(async () => {
+    const sizes = [16, 32, 48];
+    const imageDataArray = await Promise.all(
+      sizes.map(async (size) => ({
+        size,
+        imageData: await renderFaviconToImageData(icon, bgColor, iconColor, shape, fontSize, size, customImage),
+      }))
+    );
 
+    const blob = generateICO(imageDataArray);
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.download = `favicon-${exportSize}x${exportSize}.png`;
-    link.href = canvas.toDataURL("image/png");
+    link.download = "favicon.ico";
+    link.href = url;
     link.click();
-  }, [icon, bgColor, iconColor, shape, fontSize]);
+    URL.revokeObjectURL(url);
+  }, [icon, bgColor, iconColor, shape, fontSize, customImage]);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -105,27 +156,40 @@ const FaviconGenerator: React.FC = () => {
           <span className="italic">perfect</span> favicon.
         </h1>
         <p className="text-muted-foreground max-w-lg leading-relaxed">
-          Stop using generic favicons. Pick from handmade icons, customize colors and shapes, and download production-ready favicons in seconds.
+          Pick from 300+ handmade icons across 12 categories, upload your own image or SVG, customize everything, and export as PNG or ICO.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
         {/* Controls */}
         <div className="space-y-8">
+          {/* Upload Custom Image */}
+          <div className="border border-border p-5">
+            <h2 className="font-mono text-xs uppercase tracking-widest text-foreground mb-3">Custom Image</h2>
+            <ImageUpload customImage={customImage} onImageChange={setCustomImage} />
+          </div>
+
           {/* Icon Picker */}
           <div className="border border-border p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-mono text-xs uppercase tracking-widest text-foreground">Select Icon</h2>
               <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-                {Object.keys({ tech: 1, nature: 1, objects: 1, symbols: 1, letters: 1, food: 1 }).length} categories
+                12 categories · 300+ icons
               </span>
             </div>
-            <IconPicker
-              selectedIcon={icon}
-              onSelect={setIcon}
-              category={category}
-              onCategoryChange={setCategory}
-            />
+            {customImage && (
+              <div className="mb-3 px-3 py-2 bg-primary/5 border border-primary/20 font-mono text-[10px] uppercase tracking-wider text-primary">
+                ⓘ Custom image active — icons are hidden. Remove image to use icons.
+              </div>
+            )}
+            <div className={customImage ? "opacity-40 pointer-events-none" : ""}>
+              <IconPicker
+                selectedIcon={icon}
+                onSelect={(i) => { setCustomImage(null); setIcon(i); }}
+                category={category}
+                onCategoryChange={setCategory}
+              />
+            </div>
           </div>
 
           {/* Custom Text Input */}
@@ -133,10 +197,11 @@ const FaviconGenerator: React.FC = () => {
             <h2 className="font-mono text-xs uppercase tracking-widest text-foreground mb-3">Custom Icon / Emoji</h2>
             <input
               type="text"
-              value={icon}
-              onChange={(e) => setIcon(e.target.value.slice(0, 2))}
+              value={customImage ? "" : icon}
+              onChange={(e) => { setCustomImage(null); setIcon(e.target.value.slice(0, 2)); }}
               maxLength={2}
-              className="w-full bg-surface-elevated border border-border px-3 py-2 font-mono text-lg text-foreground focus:outline-none focus:border-primary transition-colors"
+              disabled={!!customImage}
+              className="w-full bg-surface-elevated border border-border px-3 py-2 font-mono text-lg text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-40"
               placeholder="Type emoji or letter..."
             />
           </div>
@@ -153,7 +218,7 @@ const FaviconGenerator: React.FC = () => {
             </div>
             <div className="border border-border p-5">
               <ColorPicker
-                label="Icon Color"
+                label={customImage ? "Icon Color (emoji only)" : "Icon Color"}
                 value={iconColor}
                 onChange={setIconColor}
                 presets={ICON_PRESETS}
@@ -203,7 +268,7 @@ const FaviconGenerator: React.FC = () => {
               backgroundSize: '12px 12px',
             }}>
               <div className="shadow-xl">
-                <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={128} fontSize={fontSize * 2} />
+                <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={128} fontSize={fontSize * 2} customImage={customImage} />
               </div>
             </div>
 
@@ -213,7 +278,7 @@ const FaviconGenerator: React.FC = () => {
               <div className="flex items-end gap-4">
                 {[16, 32, 48, 64].map((s) => (
                   <div key={s} className="flex flex-col items-center gap-1.5">
-                    <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={s} fontSize={(fontSize / 64) * s} />
+                    <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={s} fontSize={(fontSize / 64) * s} customImage={customImage} />
                     <span className="font-mono text-[9px] text-muted-foreground">{s}px</span>
                   </div>
                 ))}
@@ -231,7 +296,7 @@ const FaviconGenerator: React.FC = () => {
                     <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/20" />
                   </div>
                   <div className="flex items-center gap-2 bg-background/60 rounded px-2 py-1 flex-1 ml-2">
-                    <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={16} fontSize={(fontSize / 64) * 16} />
+                    <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={16} fontSize={(fontSize / 64) * 16} customImage={customImage} />
                     <span className="text-[11px] text-muted-foreground truncate">yoursite.com</span>
                   </div>
                 </div>
@@ -242,7 +307,11 @@ const FaviconGenerator: React.FC = () => {
             <div className="space-y-2">
               <Button variant="hero" size="lg" className="w-full" onClick={() => downloadFavicon(64)}>
                 <Download className="w-4 h-4" />
-                Download 64×64
+                Download PNG 64×64
+              </Button>
+              <Button variant="hero" size="lg" className="w-full" onClick={downloadICO}>
+                <FileImage className="w-4 h-4" />
+                Download .ICO (16, 32, 48)
               </Button>
               <div className="grid grid-cols-3 gap-2">
                 {[16, 32, 128].map((s) => (
