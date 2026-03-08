@@ -1,41 +1,33 @@
-// ICO format generator - creates proper .ico files from canvas data
-// ICO format spec: https://en.wikipedia.org/wiki/ICO_(file_format)
+// ICO format generator
+import { createBgFill } from "./gradient-utils";
+import type { BgType } from "@/hooks/use-undo-redo";
 
 export function generateICO(canvasDataArray: { size: number; imageData: ImageData }[]): Blob {
-  const images = canvasDataArray.map(({ size, imageData }) => {
-    return createBMPData(imageData, size);
-  });
+  const images = canvasDataArray.map(({ size, imageData }) => createBMPData(imageData, size));
 
-  // ICO Header: 6 bytes
   const headerSize = 6;
   const dirEntrySize = 16;
   const numImages = images.length;
   let offset = headerSize + dirEntrySize * numImages;
-
   const totalSize = offset + images.reduce((sum, img) => sum + img.length, 0);
   const buffer = new ArrayBuffer(totalSize);
   const view = new DataView(buffer);
 
-  // ICONDIR header
-  view.setUint16(0, 0, true); // Reserved
-  view.setUint16(2, 1, true); // Type: 1 = ICO
-  view.setUint16(4, numImages, true); // Number of images
+  view.setUint16(0, 0, true);
+  view.setUint16(2, 1, true);
+  view.setUint16(4, numImages, true);
 
-  // ICONDIRENTRY for each image
   for (let i = 0; i < numImages; i++) {
     const size = canvasDataArray[i].size;
     const entryOffset = headerSize + i * dirEntrySize;
-    
-    view.setUint8(entryOffset, size >= 256 ? 0 : size); // Width (0 = 256)
-    view.setUint8(entryOffset + 1, size >= 256 ? 0 : size); // Height
-    view.setUint8(entryOffset + 2, 0); // Color palette
-    view.setUint8(entryOffset + 3, 0); // Reserved
-    view.setUint16(entryOffset + 4, 1, true); // Color planes
-    view.setUint16(entryOffset + 6, 32, true); // Bits per pixel
-    view.setUint32(entryOffset + 8, images[i].length, true); // Image size
-    view.setUint32(entryOffset + 12, offset, true); // Offset
-
-    // Copy image data
+    view.setUint8(entryOffset, size >= 256 ? 0 : size);
+    view.setUint8(entryOffset + 1, size >= 256 ? 0 : size);
+    view.setUint8(entryOffset + 2, 0);
+    view.setUint8(entryOffset + 3, 0);
+    view.setUint16(entryOffset + 4, 1, true);
+    view.setUint16(entryOffset + 6, 32, true);
+    view.setUint32(entryOffset + 8, images[i].length, true);
+    view.setUint32(entryOffset + 12, offset, true);
     const uint8 = new Uint8Array(buffer);
     uint8.set(images[i], offset);
     offset += images[i].length;
@@ -45,47 +37,35 @@ export function generateICO(canvasDataArray: { size: number; imageData: ImageDat
 }
 
 function createBMPData(imageData: ImageData, size: number): Uint8Array {
-  const width = size;
-  const height = size;
   const bpp = 32;
-  const rowSize = width * (bpp / 8);
-  const pixelDataSize = rowSize * height;
-  const maskRowSize = Math.ceil(width / 32) * 4;
-  const maskSize = maskRowSize * height;
-  const headerSize = 40;
-  const totalSize = headerSize + pixelDataSize + maskSize;
-
+  const rowSize = size * (bpp / 8);
+  const pixelDataSize = rowSize * size;
+  const maskRowSize = Math.ceil(size / 32) * 4;
+  const maskSize = maskRowSize * size;
+  const hSize = 40;
+  const totalSize = hSize + pixelDataSize + maskSize;
   const buffer = new ArrayBuffer(totalSize);
   const view = new DataView(buffer);
 
-  // BITMAPINFOHEADER
-  view.setUint32(0, 40, true); // Header size
-  view.setInt32(4, width, true); // Width
-  view.setInt32(8, height * 2, true); // Height (doubled for ICO)
-  view.setUint16(12, 1, true); // Planes
-  view.setUint16(14, bpp, true); // Bits per pixel
-  view.setUint32(16, 0, true); // Compression (none)
-  view.setUint32(20, pixelDataSize + maskSize, true); // Image size
-  view.setInt32(24, 0, true); // X pixels per meter
-  view.setInt32(28, 0, true); // Y pixels per meter
-  view.setUint32(32, 0, true); // Colors used
-  view.setUint32(36, 0, true); // Important colors
+  view.setUint32(0, 40, true);
+  view.setInt32(4, size, true);
+  view.setInt32(8, size * 2, true);
+  view.setUint16(12, 1, true);
+  view.setUint16(14, bpp, true);
+  view.setUint32(16, 0, true);
+  view.setUint32(20, pixelDataSize + maskSize, true);
 
-  // Pixel data (BGRA, bottom-up)
   const pixels = imageData.data;
-  for (let y = height - 1; y >= 0; y--) {
-    for (let x = 0; x < width; x++) {
-      const srcIdx = (y * width + x) * 4;
-      const dstIdx = headerSize + ((height - 1 - y) * width + x) * 4;
-      view.setUint8(dstIdx, pixels[srcIdx + 2]); // B
-      view.setUint8(dstIdx + 1, pixels[srcIdx + 1]); // G
-      view.setUint8(dstIdx + 2, pixels[srcIdx]); // R
-      view.setUint8(dstIdx + 3, pixels[srcIdx + 3]); // A
+  for (let y = size - 1; y >= 0; y--) {
+    for (let x = 0; x < size; x++) {
+      const srcIdx = (y * size + x) * 4;
+      const dstIdx = hSize + ((size - 1 - y) * size + x) * 4;
+      view.setUint8(dstIdx, pixels[srcIdx + 2]);
+      view.setUint8(dstIdx + 1, pixels[srcIdx + 1]);
+      view.setUint8(dstIdx + 2, pixels[srcIdx]);
+      view.setUint8(dstIdx + 3, pixels[srcIdx + 3]);
     }
   }
-
-  // AND mask (all zeros = fully opaque, transparency from alpha)
-  // Already initialized to 0
 
   return new Uint8Array(buffer);
 }
@@ -98,6 +78,9 @@ export function renderFaviconToImageData(
   fontSize: number,
   size: number,
   customImage?: string | null,
+  bgType: BgType = "solid",
+  bgColor2: string = "#000000",
+  gradientAngle: number = 135,
 ): Promise<ImageData> {
   return new Promise((resolve) => {
     const canvas = document.createElement("canvas");
@@ -105,8 +88,10 @@ export function renderFaviconToImageData(
     canvas.height = size;
     const ctx = canvas.getContext("2d")!;
 
+    const fill = createBgFill(ctx, size, bgType, bgColor, bgColor2, gradientAngle);
+
     const drawBg = () => {
-      ctx.fillStyle = bgColor;
+      ctx.fillStyle = fill;
       const r = shape === "circle" ? size / 2 : shape === "rounded" ? size * 0.2 : 0;
       if (shape === "circle") {
         ctx.beginPath();
@@ -129,14 +114,6 @@ export function renderFaviconToImageData(
       }
     };
 
-    const drawIcon = () => {
-      ctx.fillStyle = iconColor;
-      ctx.font = `${(fontSize / 64) * size}px serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(icon, size / 2, size / 2 + 2);
-    };
-
     drawBg();
 
     if (customImage) {
@@ -153,7 +130,11 @@ export function renderFaviconToImageData(
       };
       img.src = customImage;
     } else {
-      drawIcon();
+      ctx.fillStyle = iconColor;
+      ctx.font = `${(fontSize / 64) * size}px serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(icon, size / 2, size / 2 + 2);
       resolve(ctx.getImageData(0, 0, size, size));
     }
   });

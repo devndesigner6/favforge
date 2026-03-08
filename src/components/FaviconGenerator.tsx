@@ -6,10 +6,12 @@ import ColorPicker from "@/components/ColorPicker";
 import ShapePicker from "@/components/ShapePicker";
 import ImageUpload from "@/components/ImageUpload";
 import AIPalette from "@/components/AIPalette";
+import GradientPicker from "@/components/GradientPicker";
 import { Download, RotateCcw, Sparkles, FileImage, Package, Undo2, Redo2 } from "lucide-react";
 import { generateICO, renderFaviconToImageData } from "@/lib/ico-generator";
 import { generateMultiFormatPack } from "@/lib/zip-generator";
-import { useUndoRedo, type FaviconState } from "@/hooks/use-undo-redo";
+import { createBgFill } from "@/lib/gradient-utils";
+import { useUndoRedo, type FaviconState, type BgType } from "@/hooks/use-undo-redo";
 
 const BG_PRESETS = [
   "#1a1a2e", "#16213e", "#0f3460", "#e94560",
@@ -28,6 +30,9 @@ const ICON_PRESETS = [
 const INITIAL_STATE: FaviconState = {
   icon: "⚡",
   bgColor: "#1a1a2e",
+  bgColor2: "#533483",
+  bgType: "solid",
+  gradientAngle: 135,
   iconColor: "#ffffff",
   shape: "rounded",
   fontSize: 38,
@@ -40,10 +45,8 @@ const FaviconGenerator: React.FC = () => {
   const [isDownloadingPack, setIsDownloadingPack] = useState(false);
   const isUndoRedo = useRef(false);
 
-  // Destructure current state
-  const { icon, bgColor, iconColor, shape, fontSize, customImage } = current;
+  const { icon, bgColor, bgColor2, bgType, gradientAngle, iconColor, shape, fontSize, customImage } = current;
 
-  // State setters that push to history
   const updateState = useCallback((partial: Partial<FaviconState>) => {
     push({ ...current, ...partial });
   }, [current, push]);
@@ -71,9 +74,13 @@ const FaviconGenerator: React.FC = () => {
       "🎮","🕹️","👾","🎲","🏆","🥇","⚽","🎾","🎯","🏹","🛹","🏋️",
       "🐱","🐶","🦊","🐻","🐼","🦁","🦄","🐸","🐙","🦈","🦅","🐬",
     ];
+    const bgTypes: BgType[] = ["solid", "linear", "radial"];
     push({
       icon: allIcons[Math.floor(Math.random() * allIcons.length)],
       bgColor: BG_PRESETS[Math.floor(Math.random() * BG_PRESETS.length)],
+      bgColor2: BG_PRESETS[Math.floor(Math.random() * BG_PRESETS.length)],
+      bgType: bgTypes[Math.floor(Math.random() * bgTypes.length)],
+      gradientAngle: Math.floor(Math.random() * 8) * 45,
       iconColor: ICON_PRESETS[Math.floor(Math.random() * ICON_PRESETS.length)],
       shape: (["square", "rounded", "circle"] as const)[Math.floor(Math.random() * 3)],
       fontSize: current.fontSize,
@@ -81,7 +88,6 @@ const FaviconGenerator: React.FC = () => {
     });
   };
 
-  // Keyboard shortcuts for undo/redo
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
@@ -106,9 +112,10 @@ const FaviconGenerator: React.FC = () => {
     if (!ctx) return;
 
     const scaledFontSize = (fontSize / 64) * exportSize;
+    const fill = createBgFill(ctx, exportSize, bgType, bgColor, bgColor2, gradientAngle);
 
     const drawBg = () => {
-      ctx.fillStyle = bgColor;
+      ctx.fillStyle = fill;
       if (shape === "circle") {
         ctx.beginPath();
         ctx.arc(exportSize / 2, exportSize / 2, exportSize / 2, 0, Math.PI * 2);
@@ -161,17 +168,16 @@ const FaviconGenerator: React.FC = () => {
       link.href = canvas.toDataURL("image/png");
       link.click();
     }
-  }, [icon, bgColor, iconColor, shape, fontSize, customImage]);
+  }, [icon, bgColor, bgColor2, bgType, gradientAngle, iconColor, shape, fontSize, customImage]);
 
   const downloadICO = useCallback(async () => {
     const sizes = [16, 32, 48];
     const imageDataArray = await Promise.all(
       sizes.map(async (size) => ({
         size,
-        imageData: await renderFaviconToImageData(icon, bgColor, iconColor, shape, fontSize, size, customImage),
+        imageData: await renderFaviconToImageData(icon, bgColor, iconColor, shape, fontSize, size, customImage, bgType, bgColor2, gradientAngle),
       }))
     );
-
     const blob = generateICO(imageDataArray);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -179,22 +185,24 @@ const FaviconGenerator: React.FC = () => {
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
-  }, [icon, bgColor, iconColor, shape, fontSize, customImage]);
+  }, [icon, bgColor, bgColor2, bgType, gradientAngle, iconColor, shape, fontSize, customImage]);
 
   const downloadPack = useCallback(async () => {
     setIsDownloadingPack(true);
     try {
-      const blob = await generateMultiFormatPack(icon, bgColor, iconColor, shape, fontSize, customImage);
+      const blob = await generateMultiFormatPack(icon, bgColor, iconColor, shape, fontSize, customImage, bgType, bgColor2, gradientAngle);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.download = "favicraft-pack.zip";
+      link.download = "iconstar-pack.zip";
       link.href = url;
       link.click();
       URL.revokeObjectURL(url);
     } finally {
       setIsDownloadingPack(false);
     }
-  }, [icon, bgColor, iconColor, shape, fontSize, customImage]);
+  }, [icon, bgColor, bgColor2, bgType, gradientAngle, iconColor, shape, fontSize, customImage]);
+
+  const canvasProps = { icon, bgColor, bgColor2, bgType, gradientAngle, iconColor, shape, customImage };
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -208,7 +216,7 @@ const FaviconGenerator: React.FC = () => {
           <span className="italic">perfect</span> favicon.
         </h1>
         <p className="text-muted-foreground max-w-lg leading-relaxed">
-          Pick from 300+ handmade icons, upload your own image, generate AI color palettes, and export as PNG, ICO, or a complete multi-format pack.
+          Pick from 300+ handmade icons, upload your own image, generate AI color palettes, add gradient backgrounds, and export as PNG, ICO, or a complete multi-format pack.
         </p>
       </div>
 
@@ -261,11 +269,24 @@ const FaviconGenerator: React.FC = () => {
           {/* AI Color Palette */}
           <AIPalette onApply={(bg, ic) => updateState({ bgColor: bg, iconColor: ic })} />
 
+          {/* Gradient Picker */}
+          <div className="border border-border p-5">
+            <GradientPicker
+              bgType={bgType}
+              bgColor={bgColor}
+              bgColor2={bgColor2}
+              gradientAngle={gradientAngle}
+              onBgTypeChange={(v) => updateState({ bgType: v })}
+              onBgColor2Change={(v) => updateState({ bgColor2: v })}
+              onGradientAngleChange={(v) => updateState({ gradientAngle: v })}
+            />
+          </div>
+
           {/* Colors */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="border border-border p-5">
               <ColorPicker
-                label="Background Color"
+                label={bgType === "solid" ? "Background Color" : "Gradient Start"}
                 value={bgColor}
                 onChange={setBgColor}
                 presets={BG_PRESETS}
@@ -308,20 +329,10 @@ const FaviconGenerator: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-mono text-xs uppercase tracking-widest text-foreground">Preview</h2>
               <div className="flex gap-2">
-                <button
-                  onClick={undo}
-                  disabled={!canUndo}
-                  className="p-1.5 border border-border hover:border-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="Undo (Ctrl+Z)"
-                >
+                <button onClick={undo} disabled={!canUndo} className="p-1.5 border border-border hover:border-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Undo (Ctrl+Z)">
                   <Undo2 className="w-3.5 h-3.5 text-muted-foreground" />
                 </button>
-                <button
-                  onClick={redo}
-                  disabled={!canRedo}
-                  className="p-1.5 border border-border hover:border-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="Redo (Ctrl+Shift+Z)"
-                >
+                <button onClick={redo} disabled={!canRedo} className="p-1.5 border border-border hover:border-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Redo (Ctrl+Shift+Z)">
                   <Redo2 className="w-3.5 h-3.5 text-muted-foreground" />
                 </button>
                 <button onClick={randomize} className="p-1.5 border border-border hover:border-foreground transition-colors" title="Randomize">
@@ -339,7 +350,7 @@ const FaviconGenerator: React.FC = () => {
               backgroundSize: '12px 12px',
             }}>
               <div className="shadow-xl">
-                <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={128} fontSize={fontSize * 2} customImage={customImage} />
+                <FaviconCanvas {...canvasProps} size={128} fontSize={fontSize * 2} />
               </div>
             </div>
 
@@ -349,7 +360,7 @@ const FaviconGenerator: React.FC = () => {
               <div className="flex items-end gap-4">
                 {[16, 32, 48, 64].map((s) => (
                   <div key={s} className="flex flex-col items-center gap-1.5">
-                    <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={s} fontSize={(fontSize / 64) * s} customImage={customImage} />
+                    <FaviconCanvas {...canvasProps} size={s} fontSize={(fontSize / 64) * s} />
                     <span className="font-mono text-[9px] text-muted-foreground">{s}px</span>
                   </div>
                 ))}
@@ -367,7 +378,7 @@ const FaviconGenerator: React.FC = () => {
                     <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/20" />
                   </div>
                   <div className="flex items-center gap-2 bg-background/60 rounded px-2 py-1 flex-1 ml-2">
-                    <FaviconCanvas icon={icon} bgColor={bgColor} iconColor={iconColor} shape={shape} size={16} fontSize={(fontSize / 64) * 16} customImage={customImage} />
+                    <FaviconCanvas {...canvasProps} size={16} fontSize={(fontSize / 64) * 16} />
                     <span className="text-[11px] text-muted-foreground truncate">yoursite.com</span>
                   </div>
                 </div>
@@ -376,13 +387,7 @@ const FaviconGenerator: React.FC = () => {
 
             {/* Download */}
             <div className="space-y-2">
-              <Button
-                variant="hero"
-                size="lg"
-                className="w-full"
-                onClick={downloadPack}
-                disabled={isDownloadingPack}
-              >
+              <Button variant="hero" size="lg" className="w-full" onClick={downloadPack} disabled={isDownloadingPack}>
                 <Package className="w-4 h-4" />
                 {isDownloadingPack ? "Generating Pack..." : "Download Full Pack (ZIP)"}
               </Button>
@@ -422,10 +427,10 @@ const FaviconGenerator: React.FC = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-primary rounded-sm flex items-center justify-center">
-              <span className="text-primary-foreground text-[8px] font-mono font-bold">F</span>
+              <span className="text-primary-foreground text-[8px] font-mono font-bold">I</span>
             </div>
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Favicraft — Handcrafted Favicons
+              Iconstar — Handcrafted Favicons
             </span>
           </div>
           <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
