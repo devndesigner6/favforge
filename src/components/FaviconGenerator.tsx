@@ -425,13 +425,13 @@ const FaviconGenerator: React.FC = () => {
       {/* Footer */}
       <footer className="mt-16 border-t border-border pt-6 pb-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-primary rounded-sm flex items-center justify-center">
-              <span className="text-primary-foreground text-[8px] font-mono font-bold">I</span>
-            </div>
+          <div className="flex items-center gap-1.5">
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              FavForge — Handcrafted Favicons
+              Made with <span className="inline-block animate-pulse text-primary drop-shadow-[0_0_6px_hsl(var(--primary)/0.6)]">❤</span> by
             </span>
+            <a href="https://hemanthme.in" target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] uppercase tracking-widest font-bold text-foreground hover:text-primary transition-colors">
+              Hemanth
+            </a>
           </div>
           <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
             Ctrl+Z / Ctrl+Shift+Z for Undo/Redo · © 2026
