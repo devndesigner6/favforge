@@ -1,13 +1,12 @@
 import React from "react";
+import logo from "@/assets/logo.png";
 
 const Header: React.FC = () => {
   return (
     <header className="border-b border-border">
       <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-primary rounded-sm flex items-center justify-center">
-            <span className="text-primary-foreground text-xs font-mono font-bold">F</span>
-          </div>
+          <img src={logo} alt="Favicraft logo" className="w-7 h-7 rounded-sm" />
           <span className="font-mono text-sm uppercase tracking-widest text-foreground">Favicraft</span>
         </div>
         <nav className="hidden md:flex items-center gap-8">
