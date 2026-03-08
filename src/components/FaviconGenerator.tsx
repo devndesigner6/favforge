@@ -430,7 +430,7 @@ const FaviconGenerator: React.FC = () => {
               <span className="text-primary-foreground text-[8px] font-mono font-bold">I</span>
             </div>
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Iconstar — Handcrafted Favicons
+              FavForge — Handcrafted Favicons
             </span>
           </div>
           <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
