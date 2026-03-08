@@ -1,8 +1,13 @@
 import { useState, useCallback, useRef } from "react";
 
+export type BgType = "solid" | "linear" | "radial";
+
 export interface FaviconState {
   icon: string;
   bgColor: string;
+  bgColor2: string;
+  bgType: BgType;
+  gradientAngle: number;
   iconColor: string;
   shape: "square" | "rounded" | "circle";
   fontSize: number;
