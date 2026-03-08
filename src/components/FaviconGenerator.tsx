@@ -1,12 +1,15 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import FaviconCanvas from "@/components/FaviconCanvas";
 import IconPicker from "@/components/IconPicker";
 import ColorPicker from "@/components/ColorPicker";
 import ShapePicker from "@/components/ShapePicker";
 import ImageUpload from "@/components/ImageUpload";
-import { Download, RotateCcw, Sparkles, FileImage } from "lucide-react";
+import AIPalette from "@/components/AIPalette";
+import { Download, RotateCcw, Sparkles, FileImage, Package, Undo2, Redo2 } from "lucide-react";
 import { generateICO, renderFaviconToImageData } from "@/lib/ico-generator";
+import { generateMultiFormatPack } from "@/lib/zip-generator";
+import { useUndoRedo, type FaviconState } from "@/hooks/use-undo-redo";
 
 const BG_PRESETS = [
   "#1a1a2e", "#16213e", "#0f3460", "#e94560",
@@ -22,28 +25,42 @@ const ICON_PRESETS = [
   "#8338ec", "#3a86ff", "#fb5607", "#ffbe0b",
 ];
 
+const INITIAL_STATE: FaviconState = {
+  icon: "⚡",
+  bgColor: "#1a1a2e",
+  iconColor: "#ffffff",
+  shape: "rounded",
+  fontSize: 38,
+  customImage: null,
+};
+
 const FaviconGenerator: React.FC = () => {
-  const [icon, setIcon] = useState("⚡");
-  const [bgColor, setBgColor] = useState("#1a1a2e");
-  const [iconColor, setIconColor] = useState("#ffffff");
-  const [shape, setShape] = useState<"square" | "rounded" | "circle">("rounded");
+  const { current, push, undo, redo, canUndo, canRedo } = useUndoRedo(INITIAL_STATE);
   const [category, setCategory] = useState("tech");
-  const [fontSize, setFontSize] = useState(38);
-  const [customImage, setCustomImage] = useState<string | null>(null);
+  const [isDownloadingPack, setIsDownloadingPack] = useState(false);
+  const isUndoRedo = useRef(false);
+
+  // Destructure current state
+  const { icon, bgColor, iconColor, shape, fontSize, customImage } = current;
+
+  // State setters that push to history
+  const updateState = useCallback((partial: Partial<FaviconState>) => {
+    push({ ...current, ...partial });
+  }, [current, push]);
+
+  const setIcon = (v: string) => updateState({ icon: v, customImage: null });
+  const setBgColor = (v: string) => updateState({ bgColor: v });
+  const setIconColor = (v: string) => updateState({ iconColor: v });
+  const setShape = (v: "square" | "rounded" | "circle") => updateState({ shape: v });
+  const setFontSize = (v: number) => updateState({ fontSize: v });
+  const setCustomImage = (v: string | null) => updateState({ customImage: v });
 
   const resetAll = () => {
-    setIcon("⚡");
-    setBgColor("#1a1a2e");
-    setIconColor("#ffffff");
-    setShape("rounded");
+    push(INITIAL_STATE);
     setCategory("tech");
-    setFontSize(38);
-    setCustomImage(null);
   };
 
   const randomize = () => {
-    setCustomImage(null);
-    const categories = ["tech", "business", "creative", "nature", "food", "travel", "gaming", "animals", "symbols", "letters", "health", "education"];
     const allIcons = [
       "⚡","💻","🖥️","📱","🤖","🧠","⚙️","🔧","🌐","💡","📈","📉",
       "💼","📋","🏢","💰","💳","🤝","🏦","📧","✅","📅","🔔","📣",
@@ -54,12 +71,32 @@ const FaviconGenerator: React.FC = () => {
       "🎮","🕹️","👾","🎲","🏆","🥇","⚽","🎾","🎯","🏹","🛹","🏋️",
       "🐱","🐶","🦊","🐻","🐼","🦁","🦄","🐸","🐙","🦈","🦅","🐬",
     ];
-    setIcon(allIcons[Math.floor(Math.random() * allIcons.length)]);
-    setBgColor(BG_PRESETS[Math.floor(Math.random() * BG_PRESETS.length)]);
-    setIconColor(ICON_PRESETS[Math.floor(Math.random() * ICON_PRESETS.length)]);
-    const shapes: ("square" | "rounded" | "circle")[] = ["square", "rounded", "circle"];
-    setShape(shapes[Math.floor(Math.random() * shapes.length)]);
+    push({
+      icon: allIcons[Math.floor(Math.random() * allIcons.length)],
+      bgColor: BG_PRESETS[Math.floor(Math.random() * BG_PRESETS.length)],
+      iconColor: ICON_PRESETS[Math.floor(Math.random() * ICON_PRESETS.length)],
+      shape: (["square", "rounded", "circle"] as const)[Math.floor(Math.random() * 3)],
+      fontSize: current.fontSize,
+      customImage: null,
+    });
   };
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]);
 
   const downloadFavicon = useCallback((exportSize: number) => {
     const canvas = document.createElement("canvas");
@@ -72,12 +109,12 @@ const FaviconGenerator: React.FC = () => {
 
     const drawBg = () => {
       ctx.fillStyle = bgColor;
-      const r = shape === "circle" ? exportSize / 2 : shape === "rounded" ? exportSize * 0.2 : 0;
       if (shape === "circle") {
         ctx.beginPath();
         ctx.arc(exportSize / 2, exportSize / 2, exportSize / 2, 0, Math.PI * 2);
         ctx.fill();
       } else if (shape === "rounded") {
+        const r = exportSize * 0.2;
         ctx.beginPath();
         ctx.moveTo(r, 0);
         ctx.lineTo(exportSize - r, 0);
@@ -144,6 +181,21 @@ const FaviconGenerator: React.FC = () => {
     URL.revokeObjectURL(url);
   }, [icon, bgColor, iconColor, shape, fontSize, customImage]);
 
+  const downloadPack = useCallback(async () => {
+    setIsDownloadingPack(true);
+    try {
+      const blob = await generateMultiFormatPack(icon, bgColor, iconColor, shape, fontSize, customImage);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = "favicraft-pack.zip";
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsDownloadingPack(false);
+    }
+  }, [icon, bgColor, iconColor, shape, fontSize, customImage]);
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Hero */}
@@ -156,7 +208,7 @@ const FaviconGenerator: React.FC = () => {
           <span className="italic">perfect</span> favicon.
         </h1>
         <p className="text-muted-foreground max-w-lg leading-relaxed">
-          Pick from 300+ handmade icons across 12 categories, upload your own image or SVG, customize everything, and export as PNG or ICO.
+          Pick from 300+ handmade icons, upload your own image, generate AI color palettes, and export as PNG, ICO, or a complete multi-format pack.
         </p>
       </div>
 
@@ -185,7 +237,7 @@ const FaviconGenerator: React.FC = () => {
             <div className={customImage ? "opacity-40 pointer-events-none" : ""}>
               <IconPicker
                 selectedIcon={icon}
-                onSelect={(i) => { setCustomImage(null); setIcon(i); }}
+                onSelect={(i) => { updateState({ customImage: null, icon: i }); }}
                 category={category}
                 onCategoryChange={setCategory}
               />
@@ -198,13 +250,16 @@ const FaviconGenerator: React.FC = () => {
             <input
               type="text"
               value={customImage ? "" : icon}
-              onChange={(e) => { setCustomImage(null); setIcon(e.target.value.slice(0, 2)); }}
+              onChange={(e) => updateState({ customImage: null, icon: e.target.value.slice(0, 2) })}
               maxLength={2}
               disabled={!!customImage}
               className="w-full bg-surface-elevated border border-border px-3 py-2 font-mono text-lg text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-40"
               placeholder="Type emoji or letter..."
             />
           </div>
+
+          {/* AI Color Palette */}
+          <AIPalette onApply={(bg, ic) => updateState({ bgColor: bg, iconColor: ic })} />
 
           {/* Colors */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -253,6 +308,22 @@ const FaviconGenerator: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-mono text-xs uppercase tracking-widest text-foreground">Preview</h2>
               <div className="flex gap-2">
+                <button
+                  onClick={undo}
+                  disabled={!canUndo}
+                  className="p-1.5 border border-border hover:border-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Undo (Ctrl+Z)"
+                >
+                  <Undo2 className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+                <button
+                  onClick={redo}
+                  disabled={!canRedo}
+                  className="p-1.5 border border-border hover:border-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Redo (Ctrl+Shift+Z)"
+                >
+                  <Redo2 className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
                 <button onClick={randomize} className="p-1.5 border border-border hover:border-foreground transition-colors" title="Randomize">
                   <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
                 </button>
@@ -305,14 +376,31 @@ const FaviconGenerator: React.FC = () => {
 
             {/* Download */}
             <div className="space-y-2">
-              <Button variant="hero" size="lg" className="w-full" onClick={() => downloadFavicon(64)}>
-                <Download className="w-4 h-4" />
-                Download PNG 64×64
+              <Button
+                variant="hero"
+                size="lg"
+                className="w-full"
+                onClick={downloadPack}
+                disabled={isDownloadingPack}
+              >
+                <Package className="w-4 h-4" />
+                {isDownloadingPack ? "Generating Pack..." : "Download Full Pack (ZIP)"}
               </Button>
-              <Button variant="hero" size="lg" className="w-full" onClick={downloadICO}>
-                <FileImage className="w-4 h-4" />
-                Download .ICO (16, 32, 48)
-              </Button>
+              <div className="px-3 py-1.5 bg-primary/5 border border-primary/10">
+                <span className="font-mono text-[9px] text-muted-foreground block">
+                  Includes: ICO, PNGs (16–512), Apple Touch, Android Chrome, manifest.json & HTML snippet
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="subtle" size="sm" onClick={() => downloadFavicon(64)}>
+                  <Download className="w-3 h-3" />
+                  PNG 64×64
+                </Button>
+                <Button variant="subtle" size="sm" onClick={downloadICO}>
+                  <FileImage className="w-3 h-3" />
+                  .ICO File
+                </Button>
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {[16, 32, 128].map((s) => (
                   <Button key={s} variant="subtle" size="sm" onClick={() => downloadFavicon(s)}>
@@ -341,7 +429,7 @@ const FaviconGenerator: React.FC = () => {
             </span>
           </div>
           <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            © 2026 — All icons are free to use
+            Ctrl+Z / Ctrl+Shift+Z for Undo/Redo · © 2026
           </span>
         </div>
       </footer>
