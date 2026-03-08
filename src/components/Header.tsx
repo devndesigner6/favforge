@@ -6,8 +6,8 @@ const Header: React.FC = () => {
     <header className="border-b border-border">
       <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <img src={logo} alt="Favicraft logo" className="w-7 h-7 rounded-sm" />
-          <span className="font-mono text-sm uppercase tracking-widest text-foreground">Favicraft</span>
+          <img src={logo} alt="FavForge logo" className="w-7 h-7 rounded-sm" />
+          <span className="font-mono text-sm uppercase tracking-widest text-foreground">FavForge</span>
         </div>
         <nav className="hidden md:flex items-center gap-8">
           <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground cursor-pointer transition-colors">Generator</span>
